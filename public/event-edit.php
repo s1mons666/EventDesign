@@ -69,6 +69,9 @@ foreach ($tasks as $task) {
     }
 }
 
+// Текущая дата для минимального значения
+$today = date('Y-m-d');
+
 function formatDate($dateString) {
     if (!$dateString) return 'Дата не указана';
     try {
@@ -424,6 +427,17 @@ function getStatusText($status) {
             margin-top: 5px;
         }
         
+        /* Стили для подсказки о дате */
+        .date-hint {
+            font-size: 12px;
+            color: #f5a7ff;
+            margin-top: 5px;
+        }
+        
+        input[type="date"] {
+            color-scheme: light;
+        }
+        
         .delete-section {
             margin-top: 40px;
             padding-top: 20px;
@@ -593,11 +607,15 @@ function getStatusText($status) {
                        value="<?php echo htmlspecialchars($event['title']); ?>">
             </div>
 
+            <!-- ИСПРАВЛЕННЫЙ БЛОК С ДАТОЙ -->
             <div class="form-row">
                 <div class="form-group">
                     <label for="date">Дата *</label>
+                    <!-- ЗАПРЕТ ВЫБОРА ДАТЫ В ПРОШЛОМ -->
                     <input type="date" id="date" name="date" required 
+                           min="<?php echo $today; ?>" 
                            value="<?php echo $event_date; ?>">
+                    <div class="date-hint">📅 Нельзя выбрать дату в прошлом</div>
                 </div>
                 <div class="form-group">
                     <label for="time">Время</label>
@@ -775,6 +793,14 @@ function getStatusText($status) {
             return JSON.stringify(currentData) !== JSON.stringify(originalData);
         }
 
+        // Функция проверки даты
+        function isValidDate(dateString) {
+            const selectedDate = new Date(dateString);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return selectedDate >= today;
+        }
+
         // Предпросмотр фото
         document.getElementById('photoInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -841,6 +867,12 @@ function getStatusText($status) {
             
             if (!date) {
                 showMessage('Выберите дату мероприятия', 'error');
+                return;
+            }
+            
+            // ПРОВЕРКА ЧТО ДАТА НЕ В ПРОШЛОМ
+            if (!isValidDate(date)) {
+                showMessage('Дата мероприятия не может быть в прошлом', 'error');
                 return;
             }
             
@@ -962,7 +994,6 @@ function getStatusText($status) {
                     } else {
                         taskElement.classList.remove('completed');
                     }
-                    // Обновляем статистику
                     setTimeout(() => {
                         window.location.reload();
                     }, 300);

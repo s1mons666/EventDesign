@@ -40,9 +40,8 @@ try {
     
     // Логируем для отладки
     error_log("Updating event ID: $event_id for user: $user_id");
-    error_log("Update data: " . print_r($_POST, true));
     
-    // Валидация
+    // ВАЛИДАЦИЯ (новая)
     if (empty($event_id)) {
         echo json_encode(['success' => false, 'message' => 'ID мероприятия не указан']);
         exit;
@@ -53,8 +52,44 @@ try {
         exit;
     }
     
+    if (strlen($title) < 3) {
+        echo json_encode(['success' => false, 'message' => 'Название должно быть минимум 3 символа']);
+        exit;
+    }
+    
+    if (strlen($title) > 100) {
+        echo json_encode(['success' => false, 'message' => 'Название не может быть длиннее 100 символов']);
+        exit;
+    }
+    
     if (empty($event_date)) {
         echo json_encode(['success' => false, 'message' => 'Дата мероприятия обязательна']);
+        exit;
+    }
+    
+    // Проверка даты
+    $event_timestamp = strtotime($event_date);
+    $min_date = strtotime('-1 year'); // Можно создать мероприятия за прошлый год
+    $max_date = strtotime('+5 years'); // Не дальше 5 лет
+
+    if ($event_timestamp < $min_date) {
+        echo json_encode(['success' => false, 'message' => 'Дата не может быть более года назад']);
+        exit;
+    }
+
+    if ($event_timestamp > $max_date) {
+        echo json_encode(['success' => false, 'message' => 'Дата не может быть более чем через 5 лет']);
+        exit;
+    }
+
+    // Валидация бюджета
+    if (!empty($budget) && (!is_numeric($budget) || $budget < 0)) {
+        echo json_encode(['success' => false, 'message' => 'Бюджет должен быть положительным числом']);
+        exit;
+    }
+
+    if (!empty($budget) && $budget > 999999999) {
+        echo json_encode(['success' => false, 'message' => 'Бюджет слишком большой']);
         exit;
     }
     
@@ -62,18 +97,60 @@ try {
     $conn = $db->getConnection();
     
     // Проверяем, принадлежит ли мероприятие пользователю
-    $stmt = $conn->prepare("SELECT event_id FROM events WHERE event_id = ? AND user_id = ?");
+    $stmt = $conn->prepare("SELECT * FROM events WHERE event_id = ? AND user_id = ?");
     $stmt->execute([$event_id, $user_id]);
+    $event = $stmt->fetch();
     
-    if (!$stmt->fetch()) {
-        echo json_encode(['success' => false, 'message' => 'Мероприятие не найдено или доступ запрещен']);
+    if (!$event) {
+        echo json_encode(['success' => false, 'message' => 'Мероприятие не найдено']);
         exit;
+    }
+    
+    // Обработка нового фото
+    $photo_path = $event['photo_path'];
+    $photo_name = $event['photo_name'];
+    
+    // Проверяем, нужно ли удалить фото
+    $delete_photo = isset($_POST['delete_photo']) && $_POST['delete_photo'] == '1';
+    
+    if ($delete_photo && $photo_path && file_exists(__DIR__ . '/' . $photo_path)) {
+        unlink(__DIR__ . '/' . $photo_path);
+        $photo_path = null;
+        $photo_name = null;
+    }
+    
+    // Обработка загрузки нового фото
+    if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
+        // Удаляем старое фото если есть
+        if ($photo_path && file_exists(__DIR__ . '/' . $photo_path)) {
+            unlink(__DIR__ . '/' . $photo_path);
+        }
+        
+        $upload_dir = __DIR__ . '/uploads/events/';
+        
+        if (!file_exists($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
+        }
+        
+        $file = $_FILES['photo'];
+        $file_extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
+        
+        if (in_array($file_extension, $allowed_extensions) && $file['size'] <= 5 * 1024 * 1024) {
+            $new_filename = $event_id . '_' . time() . '.' . $file_extension;
+            $upload_path = $upload_dir . $new_filename;
+            
+            if (move_uploaded_file($file['tmp_name'], $upload_path)) {
+                $photo_path = 'uploads/events/' . $new_filename;
+                $photo_name = $file['name'];
+            }
+        }
     }
     
     // Обновляем мероприятие
     $stmt = $conn->prepare("
         UPDATE events 
-        SET title = ?, event_date = ?, location = ?, budget = ?, status = ?, description = ?
+        SET title = ?, event_date = ?, location = ?, budget = ?, status = ?, description = ?, photo_path = ?, photo_name = ?
         WHERE event_id = ? AND user_id = ?
     ");
     
@@ -84,17 +161,16 @@ try {
         $budget ? floatval($budget) : null,
         $status,
         $description ?: null,
+        $photo_path,
+        $photo_name,
         $event_id,
         $user_id
     ]);
     
     if ($result) {
-        echo json_encode([
-            'success' => true,
-            'message' => 'Мероприятие успешно обновлено'
-        ]);
+        echo json_encode(['success' => true, 'message' => 'Мероприятие обновлено']);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Ошибка при обновлении мероприятия']);
+        echo json_encode(['success' => false, 'message' => 'Ошибка при обновлении']);
     }
     
 } catch (PDOException $e) {

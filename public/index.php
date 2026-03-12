@@ -10,6 +10,7 @@ $user_id = null;
 $user = null;
 $user_events = [];
 $next_event = null;
+$filter_type = 'upcoming'; // По умолчанию показываем предстоящие
 
 // Проверяем, авторизован ли пользователь
 if (isset($_SESSION['user_id'])) {
@@ -33,22 +34,31 @@ if ($user_id) {
     $user = $stmt->fetch();
     
     if ($user) {
-        // Получаем последние 3 мероприятия пользователя для отображения
-        $stmt = $conn->prepare("
-            SELECT * FROM events 
-            WHERE user_id = ? 
-            ORDER BY 
-                CASE 
-                    WHEN event_date > datetime('now') THEN 0 
-                    ELSE 1 
-                END,
-                event_date DESC 
-            LIMIT 3
-        ");
+        // Получаем фильтр из GET параметра
+        $filter_type = isset($_GET['filter']) ? $_GET['filter'] : 'upcoming';
+        
+        // Получаем мероприятия в зависимости от фильтра
+        if ($filter_type == 'upcoming') {
+            // Только предстоящие мероприятия
+            $stmt = $conn->prepare("
+                SELECT * FROM events 
+                WHERE user_id = ? AND event_date > datetime('now')
+                ORDER BY event_date ASC 
+                LIMIT 3
+            ");
+        } else {
+            // Только прошедшие мероприятия
+            $stmt = $conn->prepare("
+                SELECT * FROM events 
+                WHERE user_id = ? AND event_date <= datetime('now')
+                ORDER BY event_date DESC 
+                LIMIT 3
+            ");
+        }
         $stmt->execute([$user_id]);
         $user_events = $stmt->fetchAll();
         
-        // Получаем ближайшее мероприятие
+        // Получаем ближайшее мероприятие (только для предстоящих)
         $stmt = $conn->prepare("
             SELECT * FROM events 
             WHERE user_id = ? AND event_date > datetime('now') 
@@ -153,13 +163,22 @@ function truncateText($text, $length = 100) {
             font-size: 14px;
             padding: 5px 0;
             transition: all 0.3s;
+            position: relative;
         }
         
         .tabs span.active {
             color: #6f6177;
             font-weight: bold;
-            border-bottom: 2px solid #f5a7ff;
-            margin-bottom: -12px;
+        }
+        
+        .tabs span.active::after {
+            content: '';
+            position: absolute;
+            bottom: -12px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: #f5a7ff;
         }
         
         .tabs span:hover {
@@ -192,6 +211,15 @@ function truncateText($text, $length = 100) {
             border-radius: 12px;
             background: #f5a7ff;
             color: #6f6177;
+            white-space: nowrap;
+        }
+        
+        .status-upcoming {
+            background: #cdd3e6;
+        }
+        
+        .status-past {
+            background: #ddd;
         }
         
         .empty-message {
@@ -355,6 +383,7 @@ function truncateText($text, $length = 100) {
             object-fit: cover;
             border-radius: 8px;
             margin: 10px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         
         .mini-photo {
@@ -363,12 +392,20 @@ function truncateText($text, $length = 100) {
             border-radius: 8px;
             object-fit: cover;
             margin-right: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
         .event-item {
             display: flex;
             align-items: center;
             gap: 10px;
+        }
+        
+        .filter-hint {
+            font-size: 12px;
+            color: #f5a7ff;
+            margin-top: 5px;
+            text-align: center;
         }
         
         @media (max-width: 992px) {
@@ -456,32 +493,43 @@ function truncateText($text, $length = 100) {
                         <img src="<?php echo htmlspecialchars($next_event['photo_path']); ?>" 
                              alt="Фото" class="event-photo-small">
                     <?php else: ?>
-                        <div class="img" style="background-image: url('images/wedding.jpg'); opacity:0.8;"></div>
+                        <div class="img" style="background-image: url('images/wedding.jpg'); opacity:0.8; height:150px;"></div>
                     <?php endif; ?>
                     <h4><?php echo htmlspecialchars($next_event['title']); ?></h4>
-                    <p>Дата: <?php echo formatDate($next_event['event_date']); ?></p>
+                    <p>📅 <?php echo formatDate($next_event['event_date']); ?></p>
+                    <p>📍 <?php echo htmlspecialchars($next_event['location'] ?? 'Место не указано'); ?></p>
                     <p class="desc"><?php echo htmlspecialchars(truncateText($next_event['description'] ?? 'Нет описания', 50)); ?></p>
-                    <p style="margin-top:10px; color:#f5a7ff;">💰 <?php echo $next_event['budget'] ? number_format($next_event['budget'], 0, ',', ' ') . ' ₽' : 'Бюджет не указан'; ?></p>
+                    <p style="margin-top:10px; color:#f5a7ff; font-weight:bold;">
+                        💰 <?php echo $next_event['budget'] ? number_format($next_event['budget'], 0, ',', ' ') . ' ₽' : 'Бюджет не указан'; ?>
+                    </p>
                 <?php else: ?>
-                    <div class="img" style="background-image: url('images/wedding.jpg'); opacity:0.5;"></div>
-                    <h4>У вас нет мероприятий</h4>
+                    <div class="img" style="background-image: url('images/wedding.jpg'); opacity:0.5; height:150px;"></div>
+                    <h4>У вас нет предстоящих мероприятий</h4>
                     <p>Создайте свое первое мероприятие!</p>
                     <p class="desc" style="color:#f5a7ff;">👆 Нажмите чтобы начать</p>
                 <?php endif; ?>
             </div>
 
-            <!-- Карточка со списком мероприятий пользователя -->
+            <!-- Карточка со списком мероприятий пользователя с РАБОЧЕЙ ФИЛЬТРАЦИЕЙ -->
             <div class="card">
                 <h3>📋 Мои мероприятия</h3>
                 <div class="tabs">
-                    <span class="active" onclick="filterEvents('upcoming')">Предстоящие</span>
-                    <span onclick="filterEvents('past')">Прошедшие</span>
+                    <a href="?filter=upcoming" class="tab-link" style="text-decoration:none;">
+                        <span class="<?php echo $filter_type == 'upcoming' ? 'active' : ''; ?>">Предстоящие</span>
+                    </a>
+                    <a href="?filter=past" class="tab-link" style="text-decoration:none;">
+                        <span class="<?php echo $filter_type == 'past' ? 'active' : ''; ?>">Прошедшие</span>
+                    </a>
                 </div>
                 
                 <?php if (empty($user_events)): ?>
                     <div class="empty-message">
-                        <p>У вас пока нет мероприятий</p>
-                        <p style="margin-top:10px;">👆 Создайте первое!</p>
+                        <?php if ($filter_type == 'upcoming'): ?>
+                            <p>У вас нет предстоящих мероприятий</p>
+                            <p style="margin-top:10px;">👆 Создайте новое мероприятие!</p>
+                        <?php else: ?>
+                            <p>У вас нет прошедших мероприятий</p>
+                        <?php endif; ?>
                     </div>
                 <?php else: ?>
                     <ul id="eventsList">
@@ -499,7 +547,7 @@ function truncateText($text, $length = 100) {
                                 <?php endif; ?>
                                 <span><?php echo htmlspecialchars(truncateText($event['title'], 20)); ?></span>
                             </div>
-                            <span class="event-status <?php echo $is_upcoming ? 'status-planned' : 'status-completed'; ?>">
+                            <span class="event-status <?php echo $is_upcoming ? 'status-upcoming' : 'status-past'; ?>">
                                 <?php echo $is_upcoming ? 'Предстоит' : 'Прошло'; ?>
                             </span>
                         </li>
@@ -509,6 +557,10 @@ function truncateText($text, $length = 100) {
                         <a href="dashboard.php" class="view-all">Все мероприятия →</a>
                     <?php endif; ?>
                 <?php endif; ?>
+                
+                <div class="filter-hint">
+                    📌 Показаны <?php echo $filter_type == 'upcoming' ? 'предстоящие' : 'прошедшие'; ?> мероприятия
+                </div>
             </div>
         <?php else: ?>
             <!-- Карточки для неавторизованного пользователя -->
@@ -615,17 +667,6 @@ function truncateText($text, $length = 100) {
 
         function closeModal() {
             document.getElementById('previewModal').classList.remove('show');
-        }
-
-        function filterEvents(type) {
-            const tabs = document.querySelectorAll('.tabs span');
-            tabs.forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            <?php if ($user_id): ?>
-            // Здесь можно добавить AJAX для фильтрации
-            console.log('Filter events:', type);
-            <?php endif; ?>
         }
 
         window.onclick = function(event) {

@@ -31,6 +31,9 @@ if (!$user_id) {
 $stmt = $conn->prepare("SELECT * FROM users WHERE user_id = ?");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
+
+// Текущая дата для минимального значения
+$today = date('Y-m-d');
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -236,6 +239,22 @@ $user = $stmt->fetch();
             color: #999;
             margin-top: 5px;
         }
+        
+        /* Стили для подсказки о дате */
+        .date-hint {
+            font-size: 12px;
+            color: #f5a7ff;
+            margin-top: 5px;
+        }
+        
+        input[type="date"] {
+            color-scheme: light;
+        }
+        
+        /* Стили для невалидной даты */
+        input:invalid {
+            border-color: #eacaca;
+        }
     </style>
 </head>
 <body class="bg-city">
@@ -286,7 +305,11 @@ $user = $stmt->fetch();
             <div class="form-row">
                 <div class="form-group">
                     <label for="date">Дата *</label>
-                    <input type="date" id="date" name="date" required value="<?php echo date('Y-m-d', strtotime('+7 days')); ?>">
+                    <!-- ЗАПРЕТ ВЫБОРА ДАТЫ В ПРОШЛОМ -->
+                    <input type="date" id="date" name="date" required 
+                           min="<?php echo $today; ?>" 
+                           value="<?php echo date('Y-m-d', strtotime('+7 days')); ?>">
+                    <div class="date-hint">📅 Нельзя выбрать дату в прошлом</div>
                 </div>
                 <div class="form-group">
                     <label for="time">Время</label>
@@ -373,6 +396,15 @@ $user = $stmt->fetch();
             document.getElementById('removePhoto').style.display = 'none';
         }
 
+        // Функция проверки даты
+        function isValidDate(dateString) {
+            const selectedDate = new Date(dateString);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Обнуляем время для корректного сравнения
+            
+            return selectedDate >= today;
+        }
+
         // Отправка формы
         document.getElementById('eventForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -393,6 +425,12 @@ $user = $stmt->fetch();
             
             if (!date) {
                 showMessage('Выберите дату мероприятия', 'error');
+                return;
+            }
+            
+            // ПРОВЕРКА ЧТО ДАТА НЕ В ПРОШЛОМ
+            if (!isValidDate(date)) {
+                showMessage('Дата мероприятия не может быть в прошлом', 'error');
                 return;
             }
             

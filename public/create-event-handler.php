@@ -40,8 +40,7 @@ try {
     
     // Логируем для отладки
     error_log("Creating event for user: $user_id");
-    error_log("POST data: " . print_r($_POST, true));
-    error_log("FILES data: " . print_r($_FILES, true));
+    error_log("Event date: $event_date");
     
     // Валидация
     if (empty($title)) {
@@ -51,6 +50,22 @@ try {
     
     if (empty($event_date)) {
         echo json_encode(['success' => false, 'message' => 'Дата мероприятия обязательна']);
+        exit;
+    }
+    
+    // ПРОВЕРКА ЧТО ДАТА НЕ В ПРОШЛОМ (СЕРВЕРНАЯ)
+    $event_timestamp = strtotime($event_date);
+    $today_timestamp = strtotime('today');
+    
+    if ($event_timestamp < $today_timestamp) {
+        echo json_encode(['success' => false, 'message' => 'Дата мероприятия не может быть в прошлом']);
+        exit;
+    }
+    
+    // Проверка что дата не слишком далеко в будущем (опционально)
+    $max_date_timestamp = strtotime('+5 years');
+    if ($event_timestamp > $max_date_timestamp) {
+        echo json_encode(['success' => false, 'message' => 'Дата не может быть более чем через 5 лет']);
         exit;
     }
     
@@ -109,7 +124,6 @@ try {
     while ($col = $columns->fetch()) {
         $column_names[] = $col['name'];
     }
-    error_log("Table columns: " . implode(', ', $column_names));
     
     // Динамически формируем запрос в зависимости от наличия колонок
     $has_photo_path = in_array('photo_path', $column_names);
@@ -152,7 +166,7 @@ try {
     if ($result) {
         echo json_encode([
             'success' => true,
-            'message' => 'Мероприятие создано',
+            'message' => 'Мероприятие успешно создано',
             'event_id' => $event_id,
             'photo' => $photo_path
         ]);

@@ -12,10 +12,93 @@ if (isset($_SESSION['user_id'])) {
 <head>
     <meta charset="UTF-8">
     <title>EventDesign - Регистрация</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/auth.css">
+    <style>
+        /* Дополнительные стили для мобильной адаптации */
+        @media (max-width: 480px) {
+            .auth-card {
+                padding: 25px 15px !important;
+                margin: 0 10px !important;
+            }
+            
+            .auth-card h2 {
+                font-size: 24px !important;
+            }
+            
+            .form-row {
+                flex-direction: column !important;
+                gap: 0 !important;
+            }
+            
+            .form-group.half {
+                width: 100% !important;
+                margin-bottom: 15px !important;
+            }
+            
+            .form-group input {
+                padding: 12px !important;
+                font-size: 16px !important;
+                -webkit-appearance: none !important;
+                border-radius: 8px !important;
+            }
+            
+            .auth-btn {
+                padding: 14px !important;
+                font-size: 16px !important;
+                width: 100% !important;
+            }
+            
+            .auth-footer {
+                font-size: 14px !important;
+            }
+            
+            .hint {
+                font-size: 12px !important;
+            }
+            
+            #message {
+                font-size: 14px !important;
+                padding: 12px !important;
+            }
+        }
+        
+        @media (max-width: 360px) {
+            .auth-card {
+                padding: 20px 12px !important;
+            }
+            
+            .auth-card h2 {
+                font-size: 22px !important;
+            }
+            
+            .form-group label {
+                font-size: 14px !important;
+            }
+            
+            .form-group input {
+                padding: 10px !important;
+            }
+        }
+        
+        /* Для очень маленьких экранов */
+        @media (max-width: 320px) {
+            .auth-card {
+                padding: 15px 10px !important;
+            }
+            
+            .auth-card h2 {
+                font-size: 20px !important;
+            }
+            
+            .btn {
+                padding: 12px !important;
+            }
+        }
+    </style>
 </head>
-<body>
+<body class="auth-page">
     <header class="header">
         <div class="container nav">
             <div class="logo">Event<span>Design</span></div>
@@ -85,7 +168,6 @@ if (isset($_SESSION['user_id'])) {
         btn.disabled = true;
         messageDiv.style.display = 'none';
         
-        // Создаем FormData
         const formData = new FormData();
         formData.append('first_name', document.getElementById('first_name').value);
         formData.append('last_name', document.getElementById('last_name').value);

@@ -1,0 +1,30 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Разрешаем все методы
+    <LimitExcept OPTIONS>
+        Allow from all
+    </LimitExcept>
+    
+    # Если файл или папка существуют, используем их напрямую
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Все остальные запросы перенаправляем на index.php
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Разрешаем все HTTP методы
+<Limit GET POST PUT DELETE OPTIONS>
+    Allow from all
+</Limit>
+
+# Защита от просмотра директорий
+Options -Indexes
+
+# Включаем обработку PHP в api.php
+<Files "api.php">
+    <IfModule mod_php7.c>
+        php_flag display_errors on
+    </IfModule>
+</Files>

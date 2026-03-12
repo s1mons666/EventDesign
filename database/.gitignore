@@ -1,0 +1,7 @@
+# Ignore database file
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# But keep schema
+!schema.sql
